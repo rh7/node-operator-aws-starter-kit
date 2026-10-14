@@ -1,0 +1,29 @@
+# cspell:words bootnodes Contabo idos kwild
+# Non-AWS override for idos-kgw/compose.prod.yaml (Ubuntu servers on Hetzner, Contabo, etc.).
+# See README.md in this directory. From the idos-kgw checkout:
+#
+#   docker compose -f compose.prod.yaml -f compose.portable.yaml ...
+#
+# compose.prod.yaml assumes an EC2 host: the awslogs driver (needs a CloudWatch log
+# group plus IAM write rights) and an ec2-user home for the admin socket. This file
+# swaps both for host-local equivalents and leaves every node setting untouched.
+services:
+  postgres:
+    logging: &local-logging
+      driver: local
+      options:
+        max-size: 50m
+        max-file: "5"
+
+  kwild:
+    logging: *local-logging
+    ports: !override
+      # RPC stays on loopback; publish it through a reverse proxy or tunnel if needed.
+      - 127.0.0.1:8484:8484
+      # P2P defaults to loopback too; outbound connections to bootnodes don't need it published.
+      # Set P2P_HOST_IP=0.0.0.0 in .env when peers must connect to this node, and allowlist
+      # them in the provider firewall (Docker-published ports bypass ufw).
+      - ${P2P_HOST_IP:-127.0.0.1}:6600:6600
+    volumes: !override
+      - "/data/kwild-home_dir/:/app/home_dir/"
+      - "/data/sockets/:/sockets/"

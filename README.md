@@ -4,6 +4,9 @@ This example connects your VPC to the idOS network using **AWS Transit Gateway**
 
 **This setup uses TGW only** — there is no VPC peering.
 
+<!-- cspell:words Contabo -->
+To run a node outside AWS (e.g. Hetzner or Contabo), see [`non-aws/`](non-aws/README.md).
+
 ---
 
 ## Why Transit Gateway (and not VPC peering)?

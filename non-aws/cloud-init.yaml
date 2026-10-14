@@ -1,0 +1,40 @@
+#cloud-config
+# cspell:words buildx Contabo NOPASSWD pwauth runcmd kwild idos
+# Ubuntu 24.04 host for an idOS kwild node (Hetzner Cloud user-data, Contabo cloud-init).
+# Replace the SSH key, then open an SSH session as `idos` and follow README.md.
+users:
+  - name: idos
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA... replace-me
+
+ssh_pwauth: false
+disable_root: true
+package_update: true
+package_upgrade: true
+packages: [ca-certificates, curl, git, git-lfs, jq, ufw]
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {"log-driver": "local", "log-opts": {"max-size": "50m", "max-file": "5"}}
+
+runcmd:
+  # Docker CE with the Compose v2 plugin; `!override` in compose.portable.yaml needs Compose >= 2.24.4.
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - usermod -aG docker idos
+  # Data paths used by compose.prod.yaml + compose.portable.yaml.
+  - install -d -o idos -g idos /data/kwild-home_dir /data/sockets
+  - install -d /data/postgres-data
+  # ufw guards SSH only; Docker-published ports bypass it, so 6600 is gated by
+  # compose.portable.yaml (loopback by default) and the provider firewall.
+  - ufw default deny incoming
+  - ufw allow OpenSSH
+  - ufw --force enable
+  - sudo -u idos git lfs install
