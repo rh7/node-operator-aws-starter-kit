@@ -31,3 +31,15 @@ variable "ssh_keypair_pub_path" {
   default     = "id_example.pub"
   description = "Path to the public key file for SSH access to the instance"
 }
+
+variable "environment" {
+  type        = string
+  default     = "partner"
+  description = "ENVIRONMENT value in idos-kgw's .env; names the CloudWatch log group /ec2/<environment>-idos-kwil-node/containers"
+}
+
+variable "log_retention_days" {
+  type        = number
+  default     = 30
+  description = "Retention of the node's CloudWatch container logs, in days"
+}

@@ -1,1 +1,4 @@
 keypair
+idos
+kwil
+kwild

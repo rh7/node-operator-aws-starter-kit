@@ -7,3 +7,4 @@ transit_gateway_id   = "tgw-xxxxxxxxxxxxxxxxx"
 tgw_ram_share_arn    = "arn:aws:ram:eu-central-1:XXXXXXXXXXXX:resource-share/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 vpc_cidr             = "10.X.0.0/16"   # Assigned by idOS (e.g. 10.1.0.0/16, 10.4.0.0/16)
 ssh_keypair_pub_path = "id_example.pub"
+environment          = "partner"        # Must match ENVIRONMENT in idos-kgw's .env

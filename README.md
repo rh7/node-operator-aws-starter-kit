@@ -118,7 +118,7 @@ nc -zv 10.0.1.50 8484
 4. **Install tools**
 
    ```bash
-   sudo dnf install -y git git-lfs vim
+   sudo dnf install -y git git-lfs jq vim
    sudo curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
    sudo chmod 755 /usr/local/bin/docker-compose
    ssh-keyscan github.com >> .ssh/known_hosts
@@ -134,19 +134,33 @@ nc -zv 10.0.1.50 8484
 
 6. **Create initial configuration**
 
+   `.env` and `compose.yaml` are not in the repository. Create both. `ENVIRONMENT` must be the
+   `environment` value from your `terraform.tfvars` (default `partner`): it selects the
+   CloudWatch log group this Terraform creates (on your machine, `terraform output log_group_name`).
+
    ```bash
+   ENVIRONMENT=partner   # your Terraform "environment" value
+   ln -s compose.prod.yaml compose.yaml
+   cat > .env <<EOF
+   ARCH=amd64
+   KWILD_LOG_LEVEL=info
+   ENVIRONMENT=$ENVIRONMENT
+   AWS_REGION=eu-central-1
+   EOF
    docker network create kwil-dev
-   sed -i 's/^ARCH=arm64/ARCH=amd64/' .env
    docker-compose run --build --rm kwild ./kwild key gen --key-file /app/home_dir/nodekey.json
    exit
    ```
 
 7. **Copy `genesis.json` and `config.toml`** (from idOS) into the node home dir on the VM
 
+   `/data/kwild-home_dir` is owned by root (Docker created it in the previous step), so copy
+   the files to the home directory first and move them with `sudo`:
+
    ```bash
-   scp -i id_example genesis.json config.toml ec2-user@$(terraform output -raw instance_public_ip):/data/kwild-home_dir
+   scp -i id_example genesis.json config.toml ec2-user@$(terraform output -raw instance_public_ip):
+   ssh -i id_example ec2-user@$(terraform output -raw instance_public_ip) 'sudo mv genesis.json config.toml /data/kwild-home_dir/'
    ```
-   (Adjust the path if your idos-kgw home dir is different.)
 
 ### Step 6: Run the node
 
@@ -188,10 +202,11 @@ nc -zv 10.0.1.50 8484
 
 4. **Check status**
 
-   - Get the node’s validator public key:
+   - Get the node’s validator public key (the `grep` drops the `idos-kwild app version` line
+     that current builds print on stdout before the JSON):
 
      ```bash
-     docker-compose -f compose.prod.yaml run --rm kwild kwild admin status --rpcserver /sockets/kwild.socket | jq -r .validator.pubkey
+     docker-compose -f compose.prod.yaml run --rm kwild kwild admin status --rpcserver /sockets/kwild.socket | grep -v '^idos-kwild app version' | jq -r .validator.pubkey
      ```
 
    - See if that key is in the validators list:
@@ -222,6 +237,7 @@ terraform output -raw instance_private_ip
 | TGW VPC attachment | Connects your VPC to the idOS Transit Gateway |
 | Security group     | SSH from internet; Kwil RPC (8484) and P2P (6600) from `10.0.0.0/8` |
 | EC2 instance       | Example node (Amazon Linux 2023, t3.large) |
+| CloudWatch log group | `/ec2/<environment>-idos-kwil-node/containers` for the `awslogs` driver in `compose.prod.yaml`, plus write access for the instance role |
 
 ---
 
@@ -246,6 +262,10 @@ Specific allocations are confirmed by idOS.
   The share was already accepted (e.g. in the console). Import it so Terraform manages the existing acceptance:
   `terraform import aws_ram_resource_share_accepter.tgw "<your_tgw_ram_share_arn>"`
   Use the exact RAM share ARN idOS gave you (e.g. `arn:aws:ram:eu-central-1:XXXXXXXXXXXX:resource-share/...`).
+
+- **"ResourceAlreadyExistsException" for the CloudWatch log group**
+  The group was created outside Terraform (e.g. by hand for an existing node). Import it:
+  `terraform import aws_cloudwatch_log_group.node "/ec2/<environment>-idos-kwil-node/containers"`
 
 - **TGW attachment stuck in "pending"**
   Accept the RAM share first (Resource Access Manager → Shared with me). Ensure subnets are in `eu-central-1`.

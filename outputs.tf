@@ -27,3 +27,8 @@ output "instance_private_ip" {
   description = "Private IP of the EC2 instance; provide this to idOS to be included in the load balancer"
   value       = aws_instance.this.private_ip
 }
+
+output "log_group_name" {
+  description = "CloudWatch log group for the node's containers (matches ENVIRONMENT in idos-kgw's .env)"
+  value       = aws_cloudwatch_log_group.node.name
+}
