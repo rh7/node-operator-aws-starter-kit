@@ -72,27 +72,32 @@ run `setup init` with `--p2p.bootnodes "$PUB#secp256k1@<leader-ip>:6600"`. The l
 ## 3b. Join an idOS network
 
 The AWS setup connects nodes over the idOS Transit Gateway, so a node outside AWS needs a P2P path
-agreed with idOS. Ask idOS for:
+agreed with idOS. This section covers a non-validator node: validators also need the bridge RPC
+and the private IPFS swarm, which are only reachable over the Transit Gateway. Ask idOS for:
 
-1. `genesis.json` and `config.toml` for the network.
+1. `genesis.json` and `config.toml` for the network, and the idos-kgw tag it runs.
 2. One or more bootnodes reachable from your host, as `<node-id>#secp256k1@<address>:6600`.
-3. If their nodes run with `[p2p] private = true`, your Node ID in their `whitelist`.
-4. For a validator: their nodes able to reach your `6600/tcp`, and approval of your
-   `validators join` request.
+3. The node IDs of the statesync snapshot providers. Replaying from genesis does not work on
+   idOS networks (old blocks were produced by older extension code), so the node must start
+   from a snapshot.
 
-Put the two files in `/data/kwild-home_dir/`. In `config.toml`, set `[p2p] bootnodes` to the
-addresses from (2), `[db] host = 'postgres'` and `[admin] listen = '/sockets/kwild.socket'`. If
-peers must connect to your node, also set `external_address = '<public-ip>:6600'`; without it the
-node advertises its Docker network address.
+Build from that tag (`git checkout <tag>` in `idos-kgw` before `dc build`). Put the two files in
+`/data/kwild-home_dir/`, then edit `config.toml`:
+
+- `[p2p] bootnodes` = the addresses from (2); `[p2p] external_address = ''` (the file may carry
+  another node's address; a non-validator only connects out).
+- `[state_sync] enable = true` and `trusted_providers` = the node IDs from (3).
+- `[db] host = 'postgres'` and `[admin] listen = '/sockets/kwild.socket'`.
+- Remove any `[erc20_bridge.signer]` entries: they belong to validators, and kwild refuses to
+  start if a listed key file is missing.
 
 ```bash
 dc up -d
-dc logs -f kwild   # wait for "finalizing commit of block"
+dc logs -f kwild   # snapshot restore first, then "finalizing commit of block"; catch-up takes hours
 dc exec kwild kwild admin status --rpcserver /sockets/kwild.socket | grep -v '^idos-kwild app version' | jq .sync
-dc exec kwild kwild validators join -s /sockets/kwild.socket   # validator only; then ask idOS to approve
 ```
 
 The `grep` drops the `idos-kwild app version` line that current builds print on stdout before the
 JSON.
 
-<!-- cspell:words Contabo bootnodes idos kwil kwild nodekey rpcserver tfvars -->
+<!-- cspell:words Contabo bootnodes idos IPFS kwil kwild nodekey rpcserver statesync tfvars -->
